@@ -1,6 +1,7 @@
 import cv2
 import time
 import mediapipe as mp
+import math
 
 
 class handDetector():
@@ -14,6 +15,7 @@ class handDetector():
         self.mpHands = mp.solutions.hands
         self.hands = self.mpHands.Hands(self.mode, self.maxHands,self.modelC, self.detectionCon, self.trackCon)
         self.mpDraw = mp.solutions.drawing_utils
+        self.tipIds = [4, 8, 12, 16, 20]
 
     def findHands(self, img, draw=True):
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -28,18 +30,53 @@ class handDetector():
         return img
 
     def findPosition(self, img, handNo=0, draw=True):
-        PosList = []
+        xList = []
+        yList = []
+        bbox=[]
+        self.PosList = []
         if self.result.multi_hand_landmarks:
             myHand = self.result.multi_hand_landmarks[handNo]
             for id, lm in enumerate(myHand.landmark):
                 h, w, c = img.shape
                 cx, cy = int(lm.x * w), int(lm.y * h)
-                PosList.append([id, cx, cy])
+                xList.append(cx)
+                yList.append(cy)
+                self.PosList.append([id, cx, cy])
 
                 if draw:
-                    cv2.circle(img, (cx, cy), 10, (255, 255, 255), cv2.FILLED)
+                    cv2.circle(img, (cx, cy), 5, (255, 255, 255), cv2.FILLED)
+            xmin,xmax = min(xList), max(xList)
+            ymin, ymax = min(yList), max(yList)
+            bbox = xmin,ymin,xmax,ymax
+            if draw:
+                cv2.rectangle(img,(bbox[0]-20,bbox[1]-20),(bbox[2]+20,bbox[3]+20),(200,162,200),2)
 
-        return PosList
+        return self.PosList,bbox
+
+    def fingerUp(self):
+        fingers = []
+        if self.PosList[self.tipIds[0]][1] > self.PosList[self.tipIds[0] - 1][1]:
+            fingers.append(1)
+        else:
+            fingers.append(0)
+        for id in range(1, 5):
+
+            if self.PosList[self.tipIds[id]][2] < self.PosList[self.tipIds[id] - 2][2]:
+                fingers.append(1)
+            else:
+                fingers.append(0)
+        return fingers
+    def findDis(self,p1,p2,img,draw = True):
+        x1, y1 = self.PosList[p1][1], self.PosList[p1][2]
+        x2, y2 = self.PosList[p2][1], self.PosList[p2][2]
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        if draw:
+            cv2.circle(img, (x1, y1), 10, (255, 0, 255), cv2.FILLED)
+            cv2.circle(img, (x2, y2), 10, (255, 0, 255), cv2.FILLED)
+            cv2.line(img, (x1, y1), (x2, y2), (255, 0, 255), 3)
+            cv2.circle(img, (cx, cy), 10, (255, 0, 255), cv2.FILLED)
+        length = math.hypot(x2 - x1, y2 - y1)
+        return length,img,[x1,y1,x2,y2,cx,cy]
 
 
 def main():
